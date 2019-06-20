@@ -18,12 +18,12 @@ func main() {
 
 	b := make([]byte, 1500)
 	for {
-		_, addr, err := conn.ReadFrom(b)
+		n, addr, err := conn.ReadFrom(b)
 		log.Println("Got UDP packet from: ", addr)
 		if err != nil {
 			log.Fatal(err)
 		}
-		_, err = conn.WriteTo(b, addr)
+		_, err = conn.WriteTo(b[:n], addr)
 		if err != nil {
 			log.Fatal(err)
 		}
