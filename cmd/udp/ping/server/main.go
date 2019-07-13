@@ -1,31 +1,12 @@
-// Simple echo UDP server
 package main
 
 import (
 	"flag"
-	"log"
-	"net"
+	"fmt"
+	"github.com/stefangluszek/goplay/pkg/udp/ping"
 )
 
 func main() {
 	address := flag.String("a", "0:9999", "address to listen on")
-	conn, err := net.ListenPacket("udp", *address)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-	log.Println("Listening for UDP packets on:", conn.LocalAddr())
-
-	b := make([]byte, 1500)
-	for {
-		n, addr, err := conn.ReadFrom(b)
-		log.Println("Got UDP packet from: ", addr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = conn.WriteTo(b[:n], addr)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	fmt.Println(ping.ListenAndServe(*address))
 }
