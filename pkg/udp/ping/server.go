@@ -24,25 +24,27 @@ var reportTicker *time.Ticker
 type Client struct {
 	id         uint32
 	addr       net.Addr
+	alias      string
 	counter    int
 	highestSeq uint32
 	mu         sync.Mutex
 }
 
 type pingHeader struct {
-	Id  uint32
-	Seq uint32
-	Len uint16
+	Id       uint32
+	Seq      uint32
+	AliasLen uint16
+	Len      uint16
 }
 
-func getClient(h pingHeader, addr net.Addr) *Client {
+func getClient(h pingHeader, addr net.Addr, alias string) *Client {
 	mu.Lock()
 	defer mu.Unlock()
 
 	if c, ok := clients[h.Id]; ok {
 		return c
 	}
-	clients[h.Id] = &Client{addr: addr, id: h.Id}
+	clients[h.Id] = &Client{addr: addr, id: h.Id, alias: alias}
 	return clients[h.Id]
 }
 
@@ -66,11 +68,11 @@ func (c *Client) String() string {
 		host = "Unknown"
 	}
 	loss := (highestSeq - counter) / highestSeq
-	return fmt.Sprintf("%d\t%s\t%d\t%d\t%.3f%%\t", c.id, host, int(highestSeq), int(counter), 100.0*loss)
+	return fmt.Sprintf("%d\t%s\t%s\t%d\t%d\t%.3f%%\t", c.id, c.alias, host, int(highestSeq), int(counter), 100.0*loss)
 }
 
 // Ping format:
-// CLIENT_ID(4) SEQ(4) LEN(2) DATA(LEN)
+// CLIENT_ID(4) SEQ(4) ALIAS_LEN(2) LEN(2) ALIAS(ALIAS_LEN) DATA(LEN)
 // NOTE: SEQ is 1-based
 func checkPing(conn net.PacketConn, addr net.Addr, b []byte) {
 
@@ -82,13 +84,19 @@ func checkPing(conn net.PacketConn, addr net.Addr, b []byte) {
 		return
 	}
 	data := make([]byte, header.Len)
+	alias := make([]byte, header.AliasLen)
+
+	if err := binary.Read(r, binary.BigEndian, &alias); err != nil {
+		log.Println("Failed to parse ping alias:", err)
+		return
+	}
 
 	if err := binary.Read(r, binary.BigEndian, &data); err != nil {
 		log.Println("Failed to parse ping data:", err)
 		return
 	}
 
-	c := getClient(header, addr)
+	c := getClient(header, addr, string(alias))
 	c.ping(header)
 }
 
@@ -99,7 +107,7 @@ func printReport() {
 		_clients := clients
 		mu.Unlock()
 		if len(_clients) > 0 {
-			fmt.Fprintln(w, "ID\tHOST\tEXPECTED\tGOT\tLOSS\t")
+			fmt.Fprintln(w, "ID\tALIAS\tHOST\tEXPECTED\tGOT\tLOSS\t")
 		}
 		for _, c := range _clients {
 			fmt.Fprintln(w, c)
