@@ -3,15 +3,23 @@ package ping
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"log"
 	"net"
+	"os"
 	"sync"
+	"text/tabwriter"
+	"time"
 )
 
 var (
 	clients map[uint32]*Client
 	mu      sync.Mutex
 )
+
+const interval = time.Second * 10
+
+var reportTicker *time.Ticker
 
 type Client struct {
 	id         uint32
@@ -47,6 +55,20 @@ func (c *Client) ping(h pingHeader) {
 	c.counter++
 }
 
+func (c *Client) String() string {
+	c.mu.Lock()
+	counter := float64(c.counter)
+	highestSeq := float64(c.highestSeq)
+	c.mu.Unlock()
+	var host string
+	host, _, err := net.SplitHostPort(c.addr.String())
+	if err != nil {
+		host = "Unknown"
+	}
+	loss := (highestSeq - counter) / highestSeq
+	return fmt.Sprintf("%s\t%.3f%%\t", host, loss)
+}
+
 // Ping format:
 // CLIENT_ID(4) SEQ(4) LEN(2) DATA(LEN)
 func checkPing(conn net.PacketConn, addr net.Addr, b []byte) {
@@ -67,7 +89,22 @@ func checkPing(conn net.PacketConn, addr net.Addr, b []byte) {
 
 	c := getClient(header, addr)
 	c.ping(header)
-	log.Println(c)
+}
+
+func printReport() {
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 3, ' ', 0)
+	for _ = range reportTicker.C {
+		mu.Lock()
+		_clients := clients
+		mu.Unlock()
+		if len(_clients) > 0 {
+			fmt.Fprintln(w, "HOST\tLOSS\t")
+		}
+		for _, c := range _clients {
+			fmt.Fprintln(w, c)
+		}
+		w.Flush()
+	}
 }
 
 func ListenAndServe(address string) error {
@@ -78,6 +115,9 @@ func ListenAndServe(address string) error {
 	clients = make(map[uint32]*Client)
 	defer conn.Close()
 	log.Println("Listening for UDP packets on:", conn.LocalAddr())
+	reportTicker = time.NewTicker(interval)
+	defer reportTicker.Stop()
+	go printReport()
 	for {
 		b := make([]byte, 1024*64)
 		n, addr, err := conn.ReadFrom(b)
@@ -85,7 +125,6 @@ func ListenAndServe(address string) error {
 			log.Println(err)
 			continue
 		}
-		log.Println("Got UDP packet from: ", addr)
 		go checkPing(conn, addr, b[:n])
 	}
 	return nil
