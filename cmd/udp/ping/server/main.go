@@ -7,6 +7,7 @@ import (
 )
 
 func main() {
-	address := flag.String("a", "0:9999", "address to listen on")
+	address := flag.String("a", ":9999", "address to listen on")
+	flag.Parse()
 	fmt.Println(ping.ListenAndServe(*address))
 }
