@@ -71,6 +71,7 @@ func (c *Client) String() string {
 
 // Ping format:
 // CLIENT_ID(4) SEQ(4) LEN(2) DATA(LEN)
+// NOTE: SEQ is 1-based
 func checkPing(conn net.PacketConn, addr net.Addr, b []byte) {
 
 	var header pingHeader
