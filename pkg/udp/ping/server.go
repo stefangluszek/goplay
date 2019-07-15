@@ -66,7 +66,7 @@ func (c *Client) String() string {
 		host = "Unknown"
 	}
 	loss := (highestSeq - counter) / highestSeq
-	return fmt.Sprintf("%d\t%s\t%.3f%%\t", c.id, host, loss)
+	return fmt.Sprintf("%d\t%s\t%d\t%d\t%.3f%%\t", c.id, host, int(highestSeq), int(counter), 100.0*loss)
 }
 
 // Ping format:
@@ -99,7 +99,7 @@ func printReport() {
 		_clients := clients
 		mu.Unlock()
 		if len(_clients) > 0 {
-			fmt.Fprintln(w, "ID\tHOST\tLOSS\t")
+			fmt.Fprintln(w, "ID\tHOST\tEXPECTED\tGOT\tLOSS\t")
 		}
 		for _, c := range _clients {
 			fmt.Fprintln(w, c)
